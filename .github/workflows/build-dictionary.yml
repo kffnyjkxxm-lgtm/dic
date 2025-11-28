@@ -39,34 +39,34 @@ jobs:
 
     - name: Convert MD to PDF with Pandoc + Typst
       run: |
-        mkdir parts pdfs
+        mkdir -p parts pdfs
 
-        # 统计总行数
-        total_lines=$(wc -l < dictionary.md)
-        lines_per_part=$(( (total_lines + 9) / 10 ))   # 向上取整
+        # 按字节数平均切成 10 份（每份约 7MB，稳）
+        split -d -b 7M dictionary.md parts/part-
 
-        # 用 csplit 按行数强行切成 10 份（不管内容是什么，都切）
-        csplit -z -f parts/part- -n 2 dictionary.md $lines_per_part {9}
+        # 给每份加上 .md 后缀，防止 pandoc 认不出来
+        for f in parts/part-*; do mv "$f" "$f.md"; done
 
-        # 如果最后一份是空的就删掉
-        [ -f parts/part-10 ] || rm -f parts/part-10 2>/dev/null || true
-
-        # 每份单独用 pandoc + typst 编译（内存峰值 < 1GB）
-        for part in parts/part-??; do
-          base=$(basename "$part")
-          pandoc "$part" -o "pdfs/${base}.pdf" \
+        # 逐个编译（每份内存 < 800MB）
+        for md in parts/part-*.md; do
+          base=$(basename "$md" .md)
+          pandoc "$md" \
             --pdf-engine=typst \
             --template=template.typ \
             --wrap=preserve \
-            -f markdown+smart
+            -f markdown+smart \
+            -o "pdfs/${base}.pdf"
         done
 
-        # 用 Typst 官方合并工具合并 10 个 PDF（超快超稳）
+        # 用 Typst 官方合并工具（最快最稳）
         cat > merge.typ <<'EOF'
         #import "@preview/pdfpc:0.1.0": merge
         #merge("pdfs/part-*.pdf", "output.pdf")
         EOF
         typst compile merge.typ
+
+        echo "=== 编译完成 ==="
+        ls -lh output.pdf
 
     - name: Upload PDF as Artifact
       uses: actions/upload-artifact@v4
