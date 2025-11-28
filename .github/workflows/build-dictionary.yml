@@ -20,7 +20,7 @@ jobs:
         # 下载最新 Typst CLI（GitHub Actions 预装 Rust，但我们用预编译二进制）
         wget https://github.com/typst/typst/releases/download/v0.14.0/typst-x86_64-unknown-linux-musl.tar.xz
         tar -xf typst-x86_64-unknown-linux-musl.tar.xz
-        sudo mv typst /usr/local/bin/
+        sudo mv typst-x86_64-unknown-linux-musl/typst /usr/local/bin/
         typst --version  # 验证安装
 
     - name: Convert MD to PDF with Pandoc + Typst
