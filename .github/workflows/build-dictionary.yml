@@ -2,42 +2,54 @@ name: Build Dictionary PDF
 
 on:
   push:
-    branches: [ main ]  # 推送到 main 分支时自动触发
+    branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:  # 允许手动触发（在 GitHub 仓库的 Actions 标签页点击 Run）
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # 用 Ubuntu，内存足
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4  # 拉取你的代码，包括 dictionary.md 和 template.typ
+      uses: actions/checkout@v4  # 拉取 dictionary.md 和 template.typ
 
-    - name: Install Typst (PDF engine)
+    - name: Install Dependencies
       run: |
-        # 下载最新 Typst CLI（GitHub Actions 预装 Rust，但我们用预编译二进制）
+        # 更新 apt 并安装 wget、tar 等基本工具（Ubuntu 已预装大部分）
+        sudo apt update
+        sudo apt install -y wget tar xz-utils  # xz-utils 用于解压 .tar.xz
+
+    - name: Install Latest Pandoc (Direct Download)
+      run: |
+        # 下载最新稳定版 Pandoc（3.1.13+，支持 Typst 无 Docker）
+        wget https://github.com/jgm/pandoc/releases/latest/download/pandoc-3.1.13-1-amd64.deb
+        sudo dpkg -i pandoc-3.1.13-1-amd64.deb
+        pandoc --version  # 验证：应输出 pandoc 3.1.13
+
+    - name: Install Latest Typst (PDF Engine)
+      run: |
+        # 下载 Typst 0.14.0（你指定的版本，兼容四列表格模板）
         wget https://github.com/typst/typst/releases/download/v0.14.0/typst-x86_64-unknown-linux-musl.tar.xz
         tar -xf typst-x86_64-unknown-linux-musl.tar.xz
         sudo mv typst-x86_64-unknown-linux-musl/typst /usr/local/bin/
-        typst --version  # 验证安装
+        sudo chmod +x /usr/local/bin/typst
+        typst --version  # 验证：应输出 typst 0.14.0
 
     - name: Convert MD to PDF with Pandoc + Typst
       run: |
-        # 用 pandoc/core:3.1（已拉取成功），但移除 raw_typst（3.1 不支持）
-        # 改用 +raw_attribute（支持内嵌 raw 块，但不指定 typst 类型）
-        # 如果你的 MD 无内嵌 Typst，这就够了；否则用 pandoc/core:latest（见备选）
-        docker run --rm -v $(pwd):/data pandoc/core:3.1 pandoc \
-          /data/dictionary.md \
-          -o /data/output.pdf \
+        # 直接用原生 Pandoc + Typst（无 Docker，路径用绝对路径避免 withBinaryFile 错误）
+        pandoc \
+          dictionary.md \
+          -o output.pdf \
           --pdf-engine=typst \
-          --template=/data/template.typ \
+          --template=template.typ \
           --wrap=preserve \
           --top-level-division=chapter \
           -f markdown+raw_attribute+smart \
-          --pdf-engine-opt=--font-path=/data
-        ls -la output.pdf  # 验证输出文件存在
+          --pdf-engine-opt=--font-path=.
+        ls -la output.pdf  # 验证输出：应显示 ~50-100MB PDF 文件
 
     - name: Upload PDF as Artifact
       uses: actions/upload-artifact@v4
@@ -51,7 +63,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         files: output.pdf
-        tag_name: v1.0-${{ github.run_number }}  # 每次构建新版本
+        tag_name: v1.0-${{ github.run_number }}
         name: Dictionary PDF Build ${{ github.run_number }}
         draft: false
         prerelease: false
