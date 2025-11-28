@@ -25,7 +25,9 @@ jobs:
 
     - name: Convert MD to PDF with Pandoc + Typst
       run: |
-        # 用 Pandoc Docker 镜像运行（内置 Pandoc 3.1+，支持 Typst）
+        # 用 pandoc/core:3.1（已拉取成功），但移除 raw_typst（3.1 不支持）
+        # 改用 +raw_attribute（支持内嵌 raw 块，但不指定 typst 类型）
+        # 如果你的 MD 无内嵌 Typst，这就够了；否则用 pandoc/core:latest（见备选）
         docker run --rm -v $(pwd):/data pandoc/core:3.1 pandoc \
           /data/dictionary.md \
           -o /data/output.pdf \
@@ -33,9 +35,9 @@ jobs:
           --template=/data/template.typ \
           --wrap=preserve \
           --top-level-division=chapter \
-          -f markdown-raw_typst+smart \
-          --pdf-engine-opt=--font-path=/data  # 如果有自定义字体，放根目录
-        # 输出文件路径：output.pdf
+          -f markdown+raw_attribute+smart \
+          --pdf-engine-opt=--font-path=/data
+        ls -la output.pdf  # 验证输出文件存在
 
     - name: Upload PDF as Artifact
       uses: actions/upload-artifact@v4
