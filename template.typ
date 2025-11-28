@@ -1,0 +1,57 @@
+name: Build Dictionary PDF
+
+on:
+  push:
+    branches: [ main ]  # 推送到 main 分支时自动触发
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # 允许手动触发（在 GitHub 仓库的 Actions 标签页点击 Run）
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # 用 Ubuntu，内存足
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4  # 拉取你的代码，包括 dictionary.md 和 template.typ
+
+    - name: Install Typst (PDF engine)
+      run: |
+        # 下载最新 Typst CLI（GitHub Actions 预装 Rust，但我们用预编译二进制）
+        wget https://github.com/typst/typst/releases/download/v0.11.0/typst-x86_64-unknown-linux-gnu.tar.xz
+        tar -xf typst-x86_64-unknown-linux-gnu.tar.xz
+        sudo mv typst /usr/local/bin/
+        typst --version  # 验证安装
+
+    - name: Convert MD to PDF with Pandoc + Typst
+      run: |
+        # 用 Pandoc Docker 镜像运行（内置 Pandoc 3.1+，支持 Typst）
+        docker run --rm -v $(pwd):/data pandoc/core:3.1 pandoc \
+          /data/dictionary.md \
+          -o /data/output.pdf \
+          --pdf-engine=typst \
+          --template=/data/template.typ \
+          --wrap=preserve \
+          --top-level-division=chapter \
+          -f markdown-raw_typst+smart \
+          --pdf-engine-opt=--font-path=/data  # 如果有自定义字体，放根目录
+        # 输出文件路径：output.pdf
+
+    - name: Upload PDF as Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: dictionary-pdf
+        path: output.pdf
+        retention-days: 30  # 保留 30 天，可下载
+
+    - name: Upload PDF as Release (optional, if on main branch)
+      if: github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: output.pdf
+        tag_name: v1.0-${{ github.run_number }}  # 每次构建新版本
+        name: Dictionary PDF Build ${{ github.run_number }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
