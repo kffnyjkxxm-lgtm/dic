@@ -59,9 +59,9 @@ jobs:
         done
 
         # 用 Typst 官方合并工具（最快最稳）
-        cat > merge.typ <<'EOF'
-        #import "@preview/pdfpc:0.1.0": merge
-        #merge("pdfs/part-*.pdf", "output.pdf")
+        # 直接用 Typst 内置 merge（0.14+ 支持）
+        typst compile --input files=pdfs/part-*.pdf --output output.pdf - <<EOF
+        #pdf-merge(files)
         EOF
         typst compile merge.typ
 
